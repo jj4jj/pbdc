@@ -11,6 +11,7 @@ setup(
       packages = find_packages('./'),
       requires = ['Jinja2'],
       include_package_data = True,
+      package_data = {'./':['templates/pb2.proto']},
       data_files = ['templates/pb2.proto'],
       url='https://github.com/jj4jj/pbdc',
 )

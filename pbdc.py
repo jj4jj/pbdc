@@ -103,7 +103,7 @@ def pdEnum(name, **kwargs):
     gtx.stack.append(DefStage('enum', name, kwargs))
 
 def pdTab(name, **kwargs):
-    gtx.stack.append(DefStage('res', name, kwargs))
+    gtx.stack.append(DefStage('table', name, kwargs))
 
 def pdRpc(name, **kwargs):
     gtx.stack.append(DefStage('rpc', name, kwargs))
@@ -113,8 +113,7 @@ def check_keys(kwargs, keys=[]):
     for k in keys:
         v = kwargs.get(k, None)
         if v is None:
-            raise Exception('not found the key ' % str(keys))
-
+            raise Exception('not found the key:"%s" in define context:"%s:%s"...' % (k, str(gtx.stack[-1].name), str(gtx.stack[-1].type)))
 
 def pdRes(**kwargs):
     if 'rpc' != gtx.stack[-1].type:
@@ -128,17 +127,32 @@ def pdReq(**kwargs):
     check_keys(kwargs, ['t','n'])
     gtx.stack[-1].req.append(kwargs)
 
-def pdE(t,**kwargs):
+def pdE(*args, **kwargs):
     assert len(gtx.stack) > 0,'define field (entry) not in a context'
-    kwargs['t'] = t
-    if gtx.stack[-1].type == 'msg':
+    current_ctype = gtx.stack[-1].type
+    if current_ctype == 'msg' or current_ctype == 'table':
+        if(len(args) > 0):
+            kwargs['t']=args[0]
+        if(len(args) > 1):
+            kwargs['n']=args[1]
     	check_keys(kwargs, ['n','t'])
+    if current_ctype == 'service':
+        if(len(args) > 0):
+            kwargs['t']=args[0]
+        kwargs.pop('n',None)
+    	check_keys(kwargs, ['t'])
+    if current_ctype == 'enum':
+        if(len(args) > 0):
+            kwargs['n']=args[0]
+        if(len(args) > 1):
+            kwargs['v']=args[1]
+    	check_keys(kwargs, ['n','v'])
     gtx.stack[-1].fields.append(kwargs)
 
-def pdA(t, **kwargs):
+def pdA(*args, **kwargs):
     assert len(gtx.stack) > 0,'define field (entry) not in a context'
     kwargs['repeat'] = True
-    pdE(**kwargs)
+    pdE(*args, **kwargs)
 
 
 def pdGenerate(ctx, codegen, outdir):
@@ -158,6 +172,7 @@ def pdEnd(codegen=['pb'], outdir='.'):
     assert len(gtx.stack) >= 0,'defination not match for end'
     if len(gtx.stack) == 0:
         #print gtx
+        assert len(gtx.file) > 0,'end of file generation error . did you forget "pdFile(...)" ?'
         pdGenerate(gtx, codegen, outdir)
         gtx.reset()
     else:

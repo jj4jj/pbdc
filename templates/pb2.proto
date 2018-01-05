@@ -19,7 +19,7 @@ message {{df.name}} {
 {% elif df.type == 'enum' %}
 enum {{df.name}} {
 {%- if df.options.alias %}
-option allow_alias=true;
+    option allow_alias=true;
 {% endif %}
     {%-for fd in df.fields %}
     {{fd.n}} = {{fd.v}}; //{{fd.cn}}//{{fd.desc}}
@@ -56,8 +56,15 @@ message {{df.name}} {
     optional    {{fd.t}}    {{fd.t|rpc_name(df.name)}} = {{loop.index+1}}; //{{fd.t|rpc_cmd(df.name, df.options.cmd_pre)}}_RE[QS]:{{fd.cn}}//{{fd.desc}}
     {%-endfor%}
 };
-{% elif df.type == 'res' %}
-
+{% elif df.type == 'table' %}
+message {{df.name}}Desc {
+    {%-for fd in df.fields %}
+    {%if fd.repeat %}repeated{%elif fd.required %}required{%else%}optional{%endif%}    {{fd.t}}    {{fd.n}} = {{loop.index}}; //{{fd.cn}}//{{fd.desc}}
+    {%-endfor%}
+};
+message TB{{df.name}}Desc {
+    repeated     {{df.name}}Desc    list = 1; //table entry rows
+};
 {%- endif %}
 //////////////END///// @{{df.type}}:{{df.name}}://{{df.cn}}//{{df.desc}} 
 
