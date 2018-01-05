@@ -4,7 +4,23 @@ from __future__ import unicode_literals
 from jinja2 import Template, Environment
 import os
 
-
+########################################################################################################
+class CodeGenerater(object):
+    def __init__(self, ext_name, template):
+        self.ext_name=ext_name
+        self.template=template
+template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),'templates')
+backends = {
+    'pb2': CodeGenerater('.proto','pb2.proto'),
+    'res.s.h': CodeGenerater('.store.h','restb.store.h'),
+    'res.s.c': CodeGenerater('.store.cc','restb.store.cc'),
+    'res.i.h': CodeGenerater('.idx.h','restb.idx.h'),
+    'res.i.c': CodeGenerater('.idx.cc','restb.idx.cc'),
+    'res.v.h': CodeGenerater('.verify.h','restb.verify.h'),
+    'res.v.c': CodeGenerater('.verify.cc','restb.verify.cc'),
+    'mm': CodeGenerater('.cex.hpp','cex.hpp'),
+}
+########################################################################################################
 def camel_style_trans(cname):
     pre_is_lower = False
     rname = ''
@@ -71,16 +87,7 @@ class Ctx(dict):
         self[attr]=val
 
 
-########################################################################################################
-class CodeGenerater(object):
-    def __init__(self, ext_name, template):
-        self.ext_name=ext_name
-        self.template=template
-########################################################################################################
-template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),'templates')
-backends = {
-    'pb': CodeGenerater('.proto','pb2.proto')
-}
+
 ########################################################################################################
 gtx = Ctx()
 def pdFile(name):
@@ -168,7 +175,7 @@ def pdGenerate(ctx, codegen, outdir):
         open(path,'wb+').write(data)
 
 
-def pdEnd(codegen=['pb'], outdir='.'):
+def pdEnd(codegen=['pb2'], outdir='./gen'):
     assert len(gtx.stack) >= 0,'defination not match for end'
     if len(gtx.stack) == 0:
         #print gtx
