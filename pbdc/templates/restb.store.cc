@@ -1,10 +1,12 @@
 //This file is generated auto by pbdc library , dont edit it directly .
 //Any problem when using it , please contact mail:hex@gamesci.com.cn 
 
-#include "res.store.h"
-#include "restb_loader.h"
 #include <string>
+#include "{{file}}.store.h"
+
+//dcpots util
 #include "dcpots/base/logger.h"
+
 
 template <typename MsgT>
 static int _LoadTableFromBin(MsgT & msg, std::string & file ){
@@ -21,18 +23,26 @@ static int _LoadTableFromBin(MsgT & msg, std::string & file ){
     return 0;
 }
 
+ResTabStorageBase::ResTabStorageBase(const std::string & dir):m_strLoadDir(dir){    
+}
 
-int ResTabStorageAutoGen::Load(const std::string & dir){
+int ResTabStorageAutoGen::OnLoad(){
+    return 0;
+}
+
+int ResTabStorageAutoGen::Load(){
     int iRetCode = 0;
     std::string strPath;
 {%- for df in defs %}
 {% if df.type == 'table' %}
-    strPath = dir+"/TB{{df.name}}.pbin";
+    strPath = m_strDir+"/TB{{df.name}}.pbin";
     iRetCode = _LoadTableFromBin(m_tb{{df.name}},strPath);
     CHECK_ERR_RET(iRetCode, "Load Bin Path:%s ERROR !", strPath.c_str());
 {%- endif %}
-{%- endfor %}   
-
-    return 0;
+{%- endfor %}
+    
+    iRetCode = OnLoad();
+    CHECK_ERR_RET(iRetCode, "custom load pbin error !");
+    return iRetCode;
 }
 

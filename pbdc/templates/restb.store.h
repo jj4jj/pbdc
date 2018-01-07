@@ -4,22 +4,29 @@
 #ifndef _RES_TAB_{{package}}_STORAGE_AUTO_GEN_H_
 #define _RES_TAB_{{package}}_STORAGE_AUTO_GEN_H_
 
-{%for pkg in imports %}
-#include "{{pkg}}.pb.h";
-{%- endfor %}
+#include "{{file}}.pb.h"
 
-struct ResTabStorageAutoGen {
-    int Load(const std::string & dir);
+class ResTabStorageBase {
 
 public:
+    int Load();
+
+protected:
+    virtual     int     OnLoad();
+
+public:
+    ResTabStorageBase(const std::string & dir);
+
+public:
+    std::string     m_strLoadDir;
     ///////////////////tables////////////////////
 {% for df in defs %}
 {%- if df.type == 'table' %}
     {{package}}::TB{{df.name}}Desc   m_tb{{df.name}}; //{{df.cn}}//{{df.desc}}
 {%- endif %}
 {%- endfor %}   
+
+
 };
-
-
 
 #endif

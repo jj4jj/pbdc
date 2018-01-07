@@ -1,7 +1,7 @@
 #!/bin/python
 #-*- coding:utf-8 -*-
 from __future__ import unicode_literals
-from jinja2 import Template, Environment
+from jinja2 import Template, Environment, TemplateSyntaxError
 import os
 
 ########################################################################################################
@@ -35,6 +35,20 @@ def camel_style_trans(cname):
             pre_is_lower = True
     return rname
 
+def camel_style_name(name):
+    rname = ''
+    trans = True
+    for ch in name:
+        if ch == '_':
+            trans = True
+        else:
+            if ch.islower() and trans:
+                rname += ch.upper()
+                trans = False
+            else:
+                rname += ch
+
+    return rname
 
 #CSMsgLoginQuery->LoginQuery->login_query
 def rpc_name(entry_type_name, service_name):
@@ -50,7 +64,8 @@ def rpc_cmd(entry_type_name, service_name, cmd_prefix):
     return cmd_prefix + rname.upper()
     
 tpenv = Environment()
-tpenv.filters={'rpc_name':rpc_name,'rpc_cmd':rpc_cmd}
+tpenv.filters={'rpc_name':rpc_name,'rpc_cmd':rpc_cmd,'camel_style_name':camel_style_name}
+
 
 class DefStage(dict):
     def __init__(self, type, name, options={}):
@@ -60,6 +75,43 @@ class DefStage(dict):
         self.fields = []
         self.req = []
         self.res = []
+        self.pkeys = []
+        #---------------------------------
+        self.begin()
+
+    def on_table_end(self):
+        if self.options.get('limit_size', 0) == 0:
+            self.options['limit_size'] = 1000*1000*10
+        if self.options.get('id', None) is True:
+            id_alias = self.options.get('id_alias', 'id')
+            self.fields.insert(0, dict(t='int32',n=id_alias, required=True))
+            self.options['ks'] = id_alias
+            self.options['idx'] = 'id'
+            if self.options.get('id_max', 0) == 0:
+                self.options['id_max'] = 255
+        else:
+            if self.options.get('idx', None) is None:
+                self.options['idx'] = 'list'                
+
+        if self.options.get('ks',None) is None:
+            self.options['ks'] = self.fields[0]['n']
+
+        for k in self.options['ks'].split(','):
+            for fd in self.fields:
+                if k == fd['n']:
+                    self.pkeys.append(fd)
+                    break
+
+
+    def begin(self):
+        hook = getattr(self, 'on_%s_begin' % self.type, None)
+        if hook:
+            hook()            
+
+    def end(self):
+        hook = getattr(self, 'on_%s_end' % self.type, None)
+        if hook:
+            hook()
 
     def __getattr__(self, attr):
         return self.get(attr, None)
@@ -170,8 +222,11 @@ def pdGenerate(ctx, codegen, outdir):
         path = os.path.join(outdir, ctx.file+ext_name)
         try:
             data = tpenv.from_string(open(tp).read()).render(ctx).encode('utf-8')
+        except TemplateSyntaxError, e:
+            ##exception jinja2.TemplateSyntaxError(message, lineno, name=None, filename=None)
+            raise Exception('syntax error for def for "#%d ---> %s" code gen type:%s' % (e.lineno, e.message, cg))
         except Exception,e:
-            raise Exception('syntax error for proto def for "%s" code gen type:%s' % (str(e), cg))
+            raise Exception('python syntax error for "%s" code gen type:%s' % (str(e), cg))
         open(path,'wb+').write(data)
 
 
@@ -184,6 +239,7 @@ def pdEnd(codegen=['pb2'], outdir='./gen'):
         gtx.reset()
     else:
         ddef = gtx.stack.pop()
+        ddef.end()
         gtx.meta[ddef.name] = ddef
         gtx.defs.append(ddef)
 

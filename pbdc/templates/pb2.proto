@@ -57,6 +57,7 @@ message {{df.name}} {
     {%-endfor%}
 };
 {% elif df.type == 'table' %}
+//index by {{df.options.idx}}
 message {{df.name}}Desc {
     {%-for fd in df.fields %}
     {%if fd.repeat %}repeated{%elif fd.required %}required{%else%}optional{%endif%}    {{fd.t}}    {{fd.n}} = {{loop.index}}; //{{fd.cn}}//{{fd.desc}}
