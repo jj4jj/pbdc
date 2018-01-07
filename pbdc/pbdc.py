@@ -5,6 +5,40 @@ from jinja2 import Template, Environment, TemplateSyntaxError
 import os
 
 ########################################################################################################
+gtpl_env = Environment()
+cex_ext_type_2_pb2type = {
+    'uint8':'uint32',
+    'uint16':'uint32',
+    'int8':'int32',
+    'int16':'int32',
+}
+cex_ext_types = cex_ext_type_2_pb2type.keys()
+pb_int_types = ('uint32','uint64','int32','int64','fixed64')
+pb_error_types = ('sfixed64','sfixed32','fixed32')
+primitive_types_integer = set(list(cex_ext_types) + list(pb_int_types))
+primitive_types_real = set(('float','double'))
+primitive_types_number = primitive_types_integer | primitive_types_real
+primitive_types = set(('string','bool','bytes')) | primitive_types_number
+cex_primitive_types_2_cxx_types = {
+    'uint8':'uint8_t',
+    'int8':'int8_t',
+    'uint16':'uint16_t',
+    'int16':'int16_t',
+    'uint32':'uint32_t',
+    'int32':'int32_t',
+    'uint64':'uint64_t',
+    'int64':'int64_t',
+    'float':'float',
+    'double':'double',
+    'bool':'bool',
+    'string':'error type',
+    'bytes':'error type',
+    'fixed32':'uint32_t',
+    'sfixed32':'int32_t',
+    'fixed64':'uint64_t',
+    'sfixed64':'int64_t',
+}
+
 class CodeGenerater(object):
     def __init__(self, ext_name, template):
         self.ext_name=ext_name
@@ -18,8 +52,13 @@ backends = {
     'res.i.c': CodeGenerater('.idx.cc','restb.idx.cc'),
     'res.v.h': CodeGenerater('.verify.h','restb.verify.h'),
     'res.v.c': CodeGenerater('.verify.cc','restb.verify.cc'),
-    'mm': CodeGenerater('.cex.hpp','cex.hpp'),
+    'cex.h': CodeGenerater('.cex.hpp','cex.hpp'),
+    'rpc.h': CodeGenerater('.rpc.h', 'xrpc.h'),
+    'rpc.c': CodeGenerater('.rpc.cc', 'xrpc.cc'),
+    'db.h': CodeGenerater('.db.h', 'xdb.h'),
+    'db.c': CodeGenerater('.db.cc', 'xdb.cc'),        
 }
+
 ########################################################################################################
 def camel_style_trans(cname):
     pre_is_lower = False
@@ -57,14 +96,73 @@ def rpc_name(entry_type_name, service_name):
         raise Exception('rpc define error for pdE type do not have a service type prefix type:%s' % entry_type_name)
     return camel_style_trans(entry_type_name[pos+len(service_name):])
 
-#CSMsgLoginQuery->LOGIN_QUERY
+
+###################################################################################################
 def rpc_cmd(entry_type_name, service_name, cmd_prefix):
     #print cmd_prefix
     rname = rpc_name(entry_type_name, service_name)
     return cmd_prefix + rname.upper()
     
-tpenv = Environment()
-tpenv.filters={'rpc_name':rpc_name,'rpc_cmd':rpc_cmd,'camel_style_name':camel_style_name}
+def cex_is_num(field):
+    return field['t'] in primitive_types_number
+
+def cex_is_msg(field):
+    if field['t'] in primitive_types:
+        return False
+    tm = gtx.meta.get(field['t'], None)
+    if tm is None:
+        pt = gtx.pragma['type'].get(field['t'],None)
+        if pt is None or pt == 'msg':
+            return True
+        return False
+    else:
+        if tm.type == 'msg' or tm.type == 'table':
+            return True
+        assert tm.type == 'enum', 'field type:%s is not a msg and not enum in cex  ref is error !'
+        return False
+
+def cex_is_enum(field):
+    if field['t'] in primitive_types:
+        return False
+    tm = gtx.meta.get(field['t'], None)
+    if tm is None:
+        pt = gtx.pragma['type'].get(field['t'],None)        
+        return pt == 'enum'
+    else:
+        return tm.type == 'enum'
+
+def cex_name(field):
+    return field['n']
+
+def cex_type(field):
+    mtype = field['t']
+    if cex_is_msg(field):
+        mtype = field['t']+'Cx'
+    elif field['t'] == 'string':
+        mtype = 'pbdc::string_t<%s>' % field['length']
+    elif field['t'] == 'bytes':
+        mtype = 'pbdc::bytes_t<%s>' % field['length']
+    else:
+        mtype = cex_primitive_types_2_cxx_types[field['cex_type']]
+    ##################
+    if field['repeat']:
+        return 'pbdc::array_t<%s,%s>' % (mtype, field['count'])
+    return mtype
+
+def length(a):
+    return len(a)
+
+gtpl_env.filters={'rpc_name':rpc_name,
+                  'rpc_cmd':rpc_cmd,
+                  'camel_style_name':camel_style_name,
+                  'cex_type': cex_type,
+                  'cex_name': cex_name,
+                  'cex_is_num': cex_is_num,
+                  'cex_is_msg': cex_is_msg,
+                  'cex_is_enum': cex_is_enum,
+                  'length': length,
+                  }
+###################################################################################################
 
 
 class DefStage(dict):
@@ -76,7 +174,7 @@ class DefStage(dict):
         self.req = []
         self.res = []
         self.pkeys = []
-        #---------------------------------
+        ##################
         self.begin()
 
     def on_table_end(self):
@@ -102,6 +200,16 @@ class DefStage(dict):
                     self.pkeys.append(fd)
                     break
 
+    def on_msg_end(self):        
+        if self.ks is None:
+            self.ks = ','.join([fd['n'] for fd in self.fields])
+            self.pkeys = self.fields
+        else:
+            fks = self.ks.split(',')
+            self.pkeys = [fd for fd in self.fields if fd.n in fks ]
+        assert len(self.pkeys) > 0,'error define for msg:%s property:"ks:%s"' % (self.name, self.ks)
+        if self.options.get('cex',None) is True:
+            gtx.cexs.append(self)
 
     def begin(self):
         hook = getattr(self, 'on_%s_begin' % self.type, None)
@@ -131,6 +239,10 @@ class Ctx(dict):
         self.stack = []
         self.meta = {}
         self.defs = []
+        self.cexs = []
+        self.pragma = {
+            'type':{}
+        }
 
     def __getattr__(self, attr):
         return self.get(attr, None)
@@ -138,12 +250,108 @@ class Ctx(dict):
     def __setattr__(self, attr, val):
         self[attr]=val
 
+    def on_file_begin(self):
+        for bkd in backends:
+            ext = bkd.replace('.','_')
+            hook = getattr(self, 'on_%s_begin' % ext,  None)
+            if hook:
+                hook()
 
+    def on_file_end(self):
+        for bkd in backends:
+            ext = bkd.replace('.','_')
+            hook = getattr(self, 'on_%s_end' % ext,  None)
+            if hook:
+                hook()
+
+    def cex_check_msg_constraints(self, msgdef):
+        for fd in msgdef.fields:
+            if (fd['t'] == 'string' or fd['t'] == 'bytes') and fd.get('length', None) is None:
+                raise Exception('cex define %s.%s property "length" is required !' % (msgdef.name, fd['n']))
+            if fd['repeat'] and fd.get('repeat', None) is None:
+                raise Exception('cex define %s.%s property "count" is required !' % (msgdef.name, fd['n']))
+            ###
+
+
+    def cex_build_type_reference(self):
+        checked = set()
+        tunkown = set()
+        queue = [cex for cex in self.cexs]
+        while len(queue) > 0:
+            ct = queue.pop()
+            if ct.name in checked:
+                continue
+            self.cex_check_msg_constraints(ct)
+            checked.add(ct.name)
+            ct.cex_refs = []
+            for fd in ct.fields:
+                if fd['t'] in primitive_types:
+                    continue
+                tr = self.meta.get(fd['t'], None)
+                if tr is None:                    
+                    tunkown.add(fd['t'])
+                else:
+                    if tr.type == 'enum':
+                        continue
+                    else:
+                        if tr.type != 'msg':
+                            raise Exception('error cex parsing for type def type "%s" "%s" , '\
+                                            'must def by pdMsg or pdTab or pdEnum' % (tr.type, tr.name))
+                        if ['t'] in ct.cex_refs:
+                            continue
+                        ct.cex_refs.append(fd.t)
+                        queue.insert(0, tr)
+        #
+        return tunkown
+
+    def cex_topology_sort(self):
+        def find_unrefs(root, excepts, meta):
+            if root.name in excepts:
+                return []
+            if len(set(root.cex_refs)-set(excepts)) == 0:
+                return [root.name]
+            res = []
+            for cr in root.cex_refs:
+                res.extend(find_unrefs(meta[cr], excepts, metaa))
+            return res
+        ################################################
+        stypes = []
+        excepts = []
+        while True:
+            #find unrefs
+            unref_types = []
+            for df in self.cexs:
+                unref_types.extend(find_unrefs(df, excepts, self.meta))
+            if len(unref_types) == 0:
+                break
+            stypes.extend(unref_types)
+            excepts.extend(unref_types)
+        return stypes                
+
+
+    def on_cex_h_end(self):
+        #build a graph########################################
+        self.cex_unknowns = self.cex_build_type_reference()
+        for unk in self.cex_unknowns:
+            unkt = self.pragma['type'].get(unk, None)
+            if unkt is None:
+                print 'WARNNING: cex reference type:"%s" is a extern type and not found a '\
+                      'pragma info, assume it is message type' % (unk,)
+        #######################################################
+        stypes = self.cex_topology_sort()
+        #print stypes, self.cex_unknowns
+        self.cex_defs = []
+        for st in stypes:            
+            self.cex_defs.append(self.meta[st])            
 
 ########################################################################################################
 gtx = Ctx()
+def pdPragma(p, key, val=None):
+    gtx.pragma[p][key] = val
+
 def pdFile(name):
     gtx.reset(name)
+    gtx.on_file_begin()
 
 def pdImport(name):
     gtx.imports.append(name)
@@ -167,7 +375,6 @@ def pdTab(name, **kwargs):
 def pdRpc(name, **kwargs):
     gtx.stack.append(DefStage('rpc', name, kwargs))
 
-
 def check_keys(kwargs, keys=[]):
     for k in keys:
         v = kwargs.get(k, None)
@@ -188,6 +395,10 @@ def pdReq(**kwargs):
 
 def pdE(*args, **kwargs):
     assert len(gtx.stack) > 0,'define field (entry) not in a context'
+    if kwargs.get('repeat',None) is None:
+        kwargs['repeat'] = False
+    if kwargs.get('required',None) is None:
+        kwargs['required'] = False
     current_ctype = gtx.stack[-1].type
     if current_ctype == 'msg' or current_ctype == 'table':
         if(len(args) > 0):
@@ -195,6 +406,12 @@ def pdE(*args, **kwargs):
         if(len(args) > 1):
             kwargs['n']=args[1]
     	check_keys(kwargs, ['n','t'])
+        ###################################cex##############
+        ft = kwargs['t']
+        kwargs['cex_type'] = ft
+        if ft in cex_ext_types:
+            kwargs['t'] = cex_ext_type_2_pb2type[ft]
+
     if current_ctype == 'service':
         if(len(args) > 0):
             kwargs['t']=args[0]
@@ -206,6 +423,8 @@ def pdE(*args, **kwargs):
         if(len(args) > 1):
             kwargs['v']=args[1]
     	check_keys(kwargs, ['n','v'])
+    dt = kwargs.get('t',None)
+    assert (dt not in pb_error_types),'pbdc deprecate protobuf using this type "%s" the field.' % (dt, str(kwargs))
     gtx.stack[-1].fields.append(kwargs)
 
 def pdA(*args, **kwargs):
@@ -221,18 +440,19 @@ def pdGenerate(ctx, codegen, outdir):
         ext_name = backends[cg].ext_name
         path = os.path.join(outdir, ctx.file+ext_name)
         try:
-            data = tpenv.from_string(open(tp).read()).render(ctx).encode('utf-8')
+            data = gtpl_env.from_string(open(tp).read()).render(ctx).encode('utf-8')
         except TemplateSyntaxError, e:
             ##exception jinja2.TemplateSyntaxError(message, lineno, name=None, filename=None)
             raise Exception('syntax error for def for "#%d ---> %s" code gen type:%s' % (e.lineno, e.message, cg))
         except Exception,e:
-            raise Exception('python syntax error for "%s" code gen type:%s' % (str(e), cg))
+            raise Exception('python syntax error for "%s" code gen type : "%s:%s"' % (str(e), ctx.file, cg))
         open(path,'wb+').write(data)
 
 
 def pdEnd(codegen=['pb2'], outdir='./gen'):
     assert len(gtx.stack) >= 0,'defination not match for end'
     if len(gtx.stack) == 0:
+        gtx.on_file_end()
         #print gtx
         assert len(gtx.file) > 0,'end of file generation error . did you forget "pdFile(...)" ?'
         pdGenerate(gtx, codegen, outdir)

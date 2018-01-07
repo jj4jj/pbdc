@@ -1,13 +1,9 @@
 //This file is generated auto by pbdc library , dont edit it directly .
 //Any problem when using it , please contact mail:hex@gamesci.com.cn 
-
 package {{package}};
-
 {%for pkg in imports %}
 import  "{{pkg}}";
 {%- endfor %}
-
-
 {% for df in defs %}
 //////////////BEGIN /// @{{df.type}}:{{df.name}}://{{df.cn}}//{{df.desc}} 
 {%- if df.type  == 'msg' %}
@@ -16,7 +12,7 @@ message {{df.name}} {
     {%if fd.repeat %}repeated{%elif fd.required %}required{%else%}optional{%endif%}    {{fd.t}}    {{fd.n}} = {{loop.index}}; //{{fd.cn}}//{{fd.desc}}
     {%-endfor%}
 };
-{% elif df.type == 'enum' %}
+{%- elif df.type == 'enum' %}
 enum {{df.name}} {
 {%- if df.options.alias %}
     option allow_alias=true;
@@ -25,7 +21,7 @@ enum {{df.name}} {
     {{fd.n}} = {{fd.v}}; //{{fd.cn}}//{{fd.desc}}
     {%-endfor%}
 };
-{% elif df.type == 'rpc' %}
+{%-elif df.type == 'rpc' %}
 //RPC.REQUEST
 message {{df.name}}Req { 
     {%-for fd in df.req %}
@@ -43,7 +39,7 @@ message {{df.name}} {
     optional    {{df.name}}Req    req = 1; //REQUEST
     optional    {{df.name}}Res    res = 2; //RESPONSE
 };
-{% elif df.type == 'service' %}
+{%-elif df.type == 'service' %}
 enum {{df.name}}Cmd {
     {%-for fd in df.fields %}
     {{fd.t|rpc_cmd(df.name, df.options.cmd_pre)}}_REQ = {{loop.index*2-1}}; //RPC:{{df.name}} REQUEST
@@ -56,7 +52,7 @@ message {{df.name}} {
     optional    {{fd.t}}    {{fd.t|rpc_name(df.name)}} = {{loop.index+1}}; //{{fd.t|rpc_cmd(df.name, df.options.cmd_pre)}}_RE[QS]:{{fd.cn}}//{{fd.desc}}
     {%-endfor%}
 };
-{% elif df.type == 'table' %}
+{%-elif df.type == 'table' %}
 //index by {{df.options.idx}}
 message {{df.name}}Desc {
     {%-for fd in df.fields %}
