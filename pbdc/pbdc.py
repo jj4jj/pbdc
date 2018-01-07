@@ -139,14 +139,14 @@ def cex_type(field):
     if cex_is_msg(field):
         mtype = field['t']+'Cx'
     elif field['t'] == 'string':
-        mtype = 'pbdc::string_t<%s>' % field['length']
+        mtype = 'pbdcex::string_t<%s>' % field['length']
     elif field['t'] == 'bytes':
-        mtype = 'pbdc::bytes_t<%s>' % field['length']
+        mtype = 'pbdcex::bytes_t<%s>' % field['length']
     else:
         mtype = cex_primitive_types_2_cxx_types[field['cex_type']]
     ##################
     if field['repeat']:
-        return 'pbdc::array_t<%s,%s>' % (mtype, field['count'])
+        return 'pbdcex::array_t<%s,%s>' % (mtype, field['count'])
     return mtype
 
 def length(a):
