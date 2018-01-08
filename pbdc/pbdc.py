@@ -3,6 +3,7 @@
 from __future__ import unicode_literals
 from jinja2 import Template, Environment, TemplateSyntaxError
 import os
+import sys
 
 ########################################################################################################
 gtpl_env = Environment()
@@ -11,6 +12,18 @@ cex_ext_type_2_pb2type = {
     'uint16':'uint32',
     'int8':'int32',
     'int16':'int32',
+}
+cex_ext_type_max_value = {
+    'uint8':255,
+    'uint16':65535,
+    'int8':128,
+    'int16': 32768,
+}
+cex_ext_type_min_value = {
+    'uint8':0,
+    'uint16':0,
+    'int8':-127,
+    'int16': -32767,
 }
 cex_ext_types = cex_ext_type_2_pb2type.keys()
 pb_int_types = ('uint32','uint64','int32','int64','fixed64')
@@ -52,11 +65,11 @@ backends = {
     'res.i.c': CodeGenerater('.idx.cc','restb.idx.cc'),
     'res.v.h': CodeGenerater('.verify.h','restb.verify.h'),
     'res.v.c': CodeGenerater('.verify.cc','restb.verify.cc'),
-    'cex.h': CodeGenerater('.cex.hpp','cex.hpp'),
+    'cex': CodeGenerater('.cex.hpp','cex.hpp'),
     'rpc.h': CodeGenerater('.rpc.h', 'xrpc.h'),
     'rpc.c': CodeGenerater('.rpc.cc', 'xrpc.cc'),
     'db.h': CodeGenerater('.db.h', 'xdb.h'),
-    'db.c': CodeGenerater('.db.cc', 'xdb.cc'),        
+    'db.c': CodeGenerater('.db.cc', 'xdb.cc'),
 }
 
 ########################################################################################################
@@ -106,6 +119,15 @@ def rpc_cmd(entry_type_name, service_name, cmd_prefix):
 def cex_is_num(field):
     return field['t'] in primitive_types_number
 
+def cex_is_ext_primitive(field):
+    return field['cex_type'] in cex_ext_types
+
+def cex_ext_max_value(field):
+    return cex_ext_type_max_value[field['cex_type']]
+
+def cex_ext_min_value(field):
+    return cex_ext_type_min_value[field['cex_type']]
+
 def cex_is_msg(field):
     if field['t'] in primitive_types:
         return False
@@ -149,6 +171,12 @@ def cex_type(field):
         return 'pbdcex::array_t<%s,%s>' % (mtype, field['count'])
     return mtype
 
+def cex_has_default_value(msgdef):
+    for fd in msgdef.fields:
+        if fd.get('v', 0) != 0:
+            return True
+    return False
+
 def length(a):
     return len(a)
 
@@ -160,6 +188,11 @@ gtpl_env.filters={'rpc_name':rpc_name,
                   'cex_is_num': cex_is_num,
                   'cex_is_msg': cex_is_msg,
                   'cex_is_enum': cex_is_enum,
+                  'cex_is_ext_primitive': cex_is_ext_primitive,
+                  'cex_ext_min_value': cex_ext_min_value,
+                  'cex_ext_max_value': cex_ext_max_value,
+                  'cex_is_enum': cex_is_enum,
+                  'cex_has_default_value': cex_has_default_value,
                   'length': length,
                   }
 ###################################################################################################
@@ -297,9 +330,9 @@ class Ctx(dict):
                         if tr.type != 'msg':
                             raise Exception('error cex parsing for type def type "%s" "%s" , '\
                                             'must def by pdMsg or pdTab or pdEnum' % (tr.type, tr.name))
-                        if ['t'] in ct.cex_refs:
+                        if fd['t'] in ct.cex_refs:
                             continue
-                        ct.cex_refs.append(fd.t)
+                        ct.cex_refs.append(fd['t'])
                         queue.insert(0, tr)
         #
         return tunkown
@@ -312,7 +345,7 @@ class Ctx(dict):
                 return [root.name]
             res = []
             for cr in root.cex_refs:
-                res.extend(find_unrefs(meta[cr], excepts, metaa))
+                res.extend(find_unrefs(meta[cr], excepts, meta))
             return res
         ################################################
         stypes = []
@@ -329,7 +362,7 @@ class Ctx(dict):
         return stypes                
 
 
-    def on_cex_h_end(self):
+    def on_cex_end(self):
         #build a graph########################################
         self.cex_unknowns = self.cex_build_type_reference()
         for unk in self.cex_unknowns:
@@ -364,6 +397,10 @@ def pdMsg(name, **kwargs):
 
 def pdService(name, **kwargs):
     gtx.stack.append(DefStage('service', name, kwargs))
+
+def pdConfig(name, **kwargs):
+    kwargs['cex'] = True
+    gtx.stack.append(DefStage('msg', name, kwargs))
 
 def pdEnum(name, **kwargs):
     #print gtx.stack
@@ -440,6 +477,7 @@ def pdGenerate(ctx, codegen, outdir):
         ext_name = backends[cg].ext_name
         path = os.path.join(outdir, ctx.file+ext_name)
         try:
+            print 'generating [%s@%s]' % (cg, ctx.file),os.path.abspath(path),'...'
             data = gtpl_env.from_string(open(tp).read()).render(ctx).encode('utf-8')
         except TemplateSyntaxError, e:
             ##exception jinja2.TemplateSyntaxError(message, lineno, name=None, filename=None)
@@ -448,9 +486,22 @@ def pdGenerate(ctx, codegen, outdir):
             raise Exception('python syntax error for "%s" code gen type : "%s:%s"' % (str(e), ctx.file, cg))
         open(path,'wb+').write(data)
 
+def getopt(k):
+    if len(sys.argv) < 2:
+        return None
+    kvopts = [opt.strip().split('=') for opt in sys.argv[1:]]
+    for kv in kvopts:
+        if len(kv) == 2 and (kv[0] == k or kv[0] == '--%s' % k):
+            return kv[1]
+    return None
 
-def pdEnd(codegen=['pb2'], outdir='./gen'):
+
+def pdEnd(codegen=['pb2'], outdir=None):
     assert len(gtx.stack) >= 0,'defination not match for end'
+    if outdir is None:
+        outdir = getopt('outdir')
+    if outdir is None:
+        outdir = './'
     if len(gtx.stack) == 0:
         gtx.on_file_end()
         #print gtx

@@ -7,10 +7,12 @@
 class ResTabIndexBase;
 class  ResTabVerifierBase {
 
-public:    
+public:
+    void        Clean();
     int         Verify();
 
 protected:
+    virtual     void        OnClean();
     virtual     int         OnVerify();
 
 public:

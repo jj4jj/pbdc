@@ -2,7 +2,7 @@
 //Any problem when using it , please contact mail:hex@gamesci.com.cn 
 package {{package}};
 {%for pkg in imports %}
-import  "{{pkg}}";
+import  "{{pkg}}.proto";
 {%- endfor %}
 {% for df in defs %}
 //////////////BEGIN /// @{{df.type}}:{{df.name}}://{{df.cn}}//{{df.desc}} 

@@ -6,7 +6,7 @@
 #include "{{file}}.idx.h"
 
 //dcpots util
-#include "dcpots/base/logger.h"
+#include "error_code.h"
 
 
 int   ResTabIndexBase::Build(){

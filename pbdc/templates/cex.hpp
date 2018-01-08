@@ -12,35 +12,43 @@ namespace {{package}} {
 {%-endif%}
 {%for df in cex_defs %}
 typedef struct tag{{df.name}} {
+    typedef     {{df.name}}     proto_type;
     //members
     {%-for fd in df.fields %}
-    {{fd|cex_type}}    {{fd|cex_name}}; //fd.cn //fd.desc
+    {{fd|cex_type}}    {{fd|cex_name}}; //{{fd.cn}} //{{fd.desc}}
     {%-endfor%}
 
     //construct
     void   construct(){
-        if(sizeof(*this) < 4*1024){
+        {%-if cex_has_default_value%}
+        this->SetDefault();
+        {%-else%}
+        if(sizeof(*this) < (4*1024)){ //CEX_MIN_MEMSET_BLOCK_SIZE
             memset(this, 0, sizeof(*this));
         }
         else {
-            {%-for fd in df.fields%}
-            {%-if fd.repeat%}
-            {{fd|cex_name}}.construct();//array construct
-            {%-elif fd|cex_is_msg %}
-            {{fd|cex_name}}.construct();//msg construct
-            {%-elif fd.t == 'bool'%}
-            {{fd|cex_name}}=false;
-            {%-elif fd|cex_is_num%}
-            {{fd|cex_name}}=static_cast<{{fd|cex_type}}>(0); //num
-            {%-elif fd.t == 'string' or fd.t == 'bytes'%}
-            {{fd|cex_name}}.construct(); //string
-            {%-elif fd|cex_is_enum%}
-            {{fd|cex_name}}={{fd.t}}_MIN; //enum
-            {%-else%}
-            static_assert(false, "error field type '{{fd.t}}' in cex define")
-            {%-endif%}
-            {%-endfor%}
+            this->SetDefault();
         }
+        {%-endif%}
+    }
+    void    SetDefault(){
+       {%-for fd in df.fields%}
+       {%-if fd.repeat%}
+       {{fd|cex_name}}.construct();//array construct
+       {%-elif fd|cex_is_msg %}
+       {{fd|cex_name}}.SetDefault();//msg default
+       {%-elif fd.t == 'bool'%}
+       {{fd|cex_name}}={%if fd.v%}{{fd.v}}{%else%}false{%endif%};
+       {%-elif fd|cex_is_num%}
+       {{fd|cex_name}}=static_cast<{{fd|cex_type}}>({%if fd.v%}{{fd.v}}{%else%}0{%endif%}); //num
+       {%-elif fd.t == 'string' or fd.t == 'bytes'%}
+       {{fd|cex_name}}.assign({%if fd.v%}{{fd.v}}{%else%}""{%endif%};); //string
+       {%-elif fd|cex_is_enum%}
+       {{fd|cex_name}}={%if fd.v%}{{fd.v}}{%else%}{{fd.t}}_MIN{%endif%}; //enum
+       {%-else%}
+       static_assert(false, "error field type '{{fd.t}}' in cex define")
+       {%-endif%}
+       {%-endfor%}
     }
 
     //pack and unpack
@@ -52,6 +60,16 @@ typedef struct tag{{df.name}} {
             return __LINE__;//error for array
         }
         for (size_t i = 0; i < (size_t)msgfrom_.{{ fd.n }}_size(); ++i){
+            {%-if fd|cex_is_ext_primitive %}
+            if (msgfrom_.{{fd.n}}(i) > {{fd|cex_ext_max_value}}){
+                return __LINE__;
+            }
+            {%-endif%}
+            {%-if fd.cex_type == 'int8' or fd.cex_type == 'int16' %}
+            if (msgfrom_.{{fd.n}}(i) < {{fd|cex_ext_min_value}}){
+                return __LINE__;
+            }
+            {%-endif%}
             {%-if fd|cex_is_msg %}
             ret = this->{{fd|cex_name}}.list[i].CheckFrom(msgfrom_.{{fd.n}}(i));
             if (ret){
@@ -69,13 +87,13 @@ typedef struct tag{{df.name}} {
         }
         {%-else%}
         {%-if fd|cex_is_msg%}
-            return this->{{fd|cex_name}}.CheckFrom(msgfrom_.{{fd.n}}());
+        ret = this->{{fd|cex_name}}.CheckFrom(msgfrom_.{{fd.n}}());
+        if (ret){return ret;}
         {%-elif fd.t == 'bytes' or fd.t == 'string' %}
         if(msgfrom_.{{ fd.n }}().length() > {{ fd.length }}){
             return __LINE__;
         }
         {%-else %}
-        this->{{fd|cex_name}} = msgfrom_.{{fd.n}}();
         {%-endif%}
         {%-endif%}
         {%-endfor%}

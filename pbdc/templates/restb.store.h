@@ -9,9 +9,11 @@
 class ResTabStorageBase {
 
 public:
-    int Load();
+    int      Load();
+    void     Clean();
 
 protected:
+    virtual     void    OnClean();
     virtual     int     OnLoad();
 
 public:

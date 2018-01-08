@@ -3,9 +3,7 @@
 
 #include <string>
 #include "{{file}}.store.h"
-
-//dcpots util
-#include "dcpots/base/logger.h"
+#include "error_code.h"
 
 
 template <typename MsgT>
@@ -26,11 +24,16 @@ static int _LoadTableFromBin(MsgT & msg, std::string & file ){
 ResTabStorageBase::ResTabStorageBase(const std::string & dir):m_strLoadDir(dir){    
 }
 
-int ResTabStorageAutoGen::OnLoad(){
-    return 0;
+void ResTabStorageBase::OnClean() {
 }
 
-int ResTabStorageAutoGen::Load(){
+int ResTabStorageBase::OnLoad(){
+    return 0;
+}
+void ResTabStorageBase::Clean() {
+    OnClean();
+}
+int ResTabStorageBase::Load(){
     int iRetCode = 0;
     std::string strPath;
 {%- for df in defs %}

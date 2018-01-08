@@ -6,10 +6,15 @@
 
 #include "{{file}}.index.h"
 //dcpots util
-#include "dcpots/base/logger.h"
+#include "error_code.h"
 
 int         ResTabVerifierBase::OnVerify(){
     return 0;
+}
+void         ResTabVerifierBase::OnClean() {
+}
+int         ResTabVerifierBase::Clean() {
+    OnClean();
 }
 int         ResTabVerifierBase::Verify(){
     int iRetCode = 0;
