@@ -10,15 +10,17 @@
 #include <unordered_map>
 
 //pre declaration
-class ResTabeStoreBase;
+class ResTabStorageBase;
+{% if package %}
 namespace {{package}} {
-{%for df in defs %}
+{%-for df in defs %}
 {%-if df.type == 'table' %}
     class TB{{df.name}}Desc;
     class {{df.name}}Desc;
 {%- endif %}
 {%- endfor %}
 };
+{%-endif%}
 
 class  ResTabIndexBase {
 public:    
@@ -108,23 +110,23 @@ public:
 {%- endfor %}
 
 public:
-    ResTabIndexBase(ResTabeStoreBase * store):m_pStorage(store){}
+    ResTabIndexBase(ResTabStorageBase * store):m_pStorage(store){}
 
 private:
-    ResTabeStoreBase *  m_pStorage {nullptr};
+    ResTabStorageBase *  m_pStorage {nullptr};
 
 public:
     //default indexes
 {%- for df in defs %}
 {%- if df.type == 'table' %}
     {%-if df.options.idx == 'id' %}
-    std::vector<const {{df.name}}Desc *>    m_idx{{df.name}}; //index based id of {{df.name}}
+    std::vector<const {{package}}::{{df.name}}Desc *>    m_idx{{df.name}}; //index based id of {{df.name}}
     {%-elif df.options.idx == 'hash' %}
-    typedef std::unordered_map<{{df.name}}Key, const {{df.name}}Desc *>  {{df.name}}HashMap;
+    typedef std::unordered_map<{{df.name}}Key, const {{package}}::{{df.name}}Desc *>  {{df.name}}HashMap;
     typedef {{df.name}}HashMap::iterator     {{df.name}}HashMapItr;
     {{df.name}}HashMap    m_idx{{df.name}}; //index based hastable of {{df.name}}
     {%-elif df.options.idx == 'tree' %}
-    typedef std::map<{{df.name}}Key, const {{df.name}}Desc *>  {{df.name}}TreeMap;
+    typedef std::map<{{df.name}}Key, const {{package}}::{{df.name}}Desc *>  {{df.name}}TreeMap;
     typedef {{df.name}}TreeMap::iterator     {{df.name}}TreeMapItr;
     {{df.name}}TreeMap    m_idx{{df.name}}; //index based treemap of {{df.name}}
     {%-else%}

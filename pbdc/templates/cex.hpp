@@ -10,9 +10,13 @@
 {%if package %}
 namespace {{package}} {
 {%-endif%}
+{%-for df in cex_defs %}
+class {{df.name}};
+{%-endfor%}
+
 {%for df in cex_defs %}
-typedef struct tag{{df.name}} {
-    typedef     {{df.name}}     proto_type;
+struct {{df.name}}Cx {
+    typedef  {{df.name}}   proto_type;
     //members
     {%-for fd in df.fields %}
     {{fd|cex_type}}    {{fd|cex_name}}; //{{fd.cn}} //{{fd.desc}}
@@ -23,7 +27,7 @@ typedef struct tag{{df.name}} {
         {%-if cex_has_default_value%}
         this->SetDefault();
         {%-else%}
-        if(sizeof(*this) < (4*1024)){ //CEX_MIN_MEMSET_BLOCK_SIZE
+        if(sizeof(*this) < ({{CEX_MIN_MEMSET_BLOCK_SIZE}})){ //CEX_MIN_MEMSET_BLOCK_SIZE
             memset(this, 0, sizeof(*this));
         }
         else {
@@ -42,7 +46,7 @@ typedef struct tag{{df.name}} {
        {%-elif fd|cex_is_num%}
        {{fd|cex_name}}=static_cast<{{fd|cex_type}}>({%if fd.v%}{{fd.v}}{%else%}0{%endif%}); //num
        {%-elif fd.t == 'string' or fd.t == 'bytes'%}
-       {{fd|cex_name}}.assign({%if fd.v%}{{fd.v}}{%else%}""{%endif%};); //string
+       {{fd|cex_name}}.assign({%if fd.v%}"{{fd.v}}"{%else%}""{%endif%}); //string
        {%-elif fd|cex_is_enum%}
        {{fd|cex_name}}={%if fd.v%}{{fd.v}}{%else%}{{fd.t}}_MIN{%endif%}; //enum
        {%-else%}
@@ -323,12 +327,9 @@ typedef struct tag{{df.name}} {
         return pbdcex::hash_code_merge_multi_value(avhs, {{df.pkeys|length}});
         {%-endif%}
     }
-
-} {{df.name}}Cx;
+};
 
 {%-endfor%}
-
-
 
 {%if package %}
 };

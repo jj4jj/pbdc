@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 from jinja2 import Template, Environment, TemplateSyntaxError
 import os
 import sys
+import traceback
 
 ########################################################################################################
 gtpl_env = Environment()
@@ -140,7 +141,7 @@ def cex_is_msg(field):
     else:
         if tm.type == 'msg' or tm.type == 'table':
             return True
-        assert tm.type == 'enum', 'field type:%s is not a msg and not enum in cex  ref is error !'
+        assert tm.type == 'enum', 'field type:%s(%s) is not a msg and not enum in cex  ref is error !' % (tm.name, tm.type)
         return False
 
 def cex_is_enum(field):
@@ -160,12 +161,15 @@ def cex_type(field):
     mtype = field['t']
     if cex_is_msg(field):
         mtype = field['t']+'Cx'
+    elif cex_is_enum(field):
+        mtype = field['t']
     elif field['t'] == 'string':
         mtype = 'pbdcex::string_t<%s>' % field['length']
     elif field['t'] == 'bytes':
         mtype = 'pbdcex::bytes_t<%s>' % field['length']
     else:
         mtype = cex_primitive_types_2_cxx_types[field['cex_type']]
+
     ##################
     if field['repeat']:
         return 'pbdcex::array_t<%s,%s>' % (mtype, field['count'])
@@ -207,7 +211,7 @@ class DefStage(dict):
         self.req = []
         self.res = []
         self.pkeys = []
-        ##################
+        #####################
         self.begin()
 
     def on_table_end(self):
@@ -276,6 +280,8 @@ class Ctx(dict):
         self.pragma = {
             'type':{}
         }
+        ################cex extension#####
+        self.CEX_MIN_MEMSET_BLOCK_SIZE=(4*1024)
 
     def __getattr__(self, attr):
         return self.get(attr, None)
@@ -345,6 +351,8 @@ class Ctx(dict):
                 return [root.name]
             res = []
             for cr in root.cex_refs:
+                if cr in excepts:
+                    continue
                 res.extend(find_unrefs(meta[cr], excepts, meta))
             return res
         ################################################
@@ -354,11 +362,12 @@ class Ctx(dict):
             #find unrefs
             unref_types = []
             for df in self.cexs:
-                unref_types.extend(find_unrefs(df, excepts, self.meta))
+                dunref = find_unrefs(df, excepts, self.meta)
+                excepts.extend(dunref)
+                unref_types.extend(dunref)
             if len(unref_types) == 0:
                 break
             stypes.extend(unref_types)
-            excepts.extend(unref_types)
         return stypes                
 
 
@@ -482,8 +491,10 @@ def pdGenerate(ctx, codegen, outdir):
         except TemplateSyntaxError, e:
             ##exception jinja2.TemplateSyntaxError(message, lineno, name=None, filename=None)
             raise Exception('syntax error for def for "#%d ---> %s" code gen type:%s' % (e.lineno, e.message, cg))
-        except Exception,e:
-            raise Exception('python syntax error for "%s" code gen type : "%s:%s"' % (str(e), ctx.file, cg))
+        except Exception as e:
+            traceback.print_exc()
+            #raise Exception('python syntax error for "%s %s" code gen type : "%s:%s"' % (str(type(e)),str(e), ctx.file, cg))
+            raise
         open(path,'wb+').write(data)
 
 def getopt(k):

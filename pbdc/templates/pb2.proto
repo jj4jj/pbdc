@@ -1,6 +1,8 @@
 //This file is generated auto by pbdc library , dont edit it directly .
 //Any problem when using it , please contact mail:hex@gamesci.com.cn 
+{%-if package%}
 package {{package}};
+{%-endif%}
 {%for pkg in imports %}
 import  "{{pkg}}.proto";
 {%- endfor %}
