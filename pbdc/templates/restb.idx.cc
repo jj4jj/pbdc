@@ -4,9 +4,9 @@
 //basic
 #include "{{file}}.pb.h"
 #include "{{file}}.idx.h"
+#include "{{file}}.store.h"
 
-//dcpots util
-#include "error_code.h"
+#include "gslog.h"
 
 
 int   ResTabIndexBase::Build(){
@@ -22,25 +22,25 @@ int   ResTabIndexBase::Build(){
 {%-else%}
     for (int i = 0 ;i < m_pStorage->m_tb{{df.name}}.list_size(); ++i){
     {%-if df.options.idx == 'id' %}
-        int idx = m_pStorage->m_tb{{df.name}}.list(i).{{df.pkeys[0].n}};
-        if(idx > {{df.id_max}} || idx <= 0){
-            GLOG_ERR("Build id {{df.name}} index Error for 'ID:%d > MAX ID:%d or Invalid Range' ", idx, {{df.id_max}});
+        int idx = m_pStorage->m_tb{{df.name}}.list(i).{{df.pkeys[0].n}}();
+        if(idx > {{df.options.id_max}} || idx <= 0){
+            GLOG_ERR("Build id {{df.name}} index Error for 'ID:%d > MAX ID:%d or Invalid Range' ", idx, {{df.options.id_max}});
             return -1;
         }
-        for(int j = (int)m_pStorage->m_idx{{df.name}}.size();  j < idx+1 ;++j){
-            m_pStorage->m_idx{{df.name}}.push_back(nullptr);
+        for(int j = (int)m_idx{{df.name}}.size();  j < idx+1 ;++j){
+            m_idx{{df.name}}.push_back(nullptr);
         }
-        if (m_pStorage->m_idx{{df.name}}[idx]){
+        if (m_idx{{df.name}}[idx] != nullptr){
             GLOG_ERR("Build id {{df.name}} index Error for 'id:%d is repeatly ' Info:%s", idx,m_pStorage->m_tb{{df.name}}.list(i).ShortDebugString().c_str());
             return -1;
         }
-        m_pStorage->m_idx{{df.name}}[idx] = &(m_pStorage->m_tb{{df.name}}.list(i));
+        m_idx{{df.name}}[idx] = &(m_pStorage->m_tb{{df.name}}.list(i));
     {%-elif df.options.idx == 'hash' or df.options.idx == 'tree' %}
         {{df.name}}Key  key{{df.name}};
         {%-for fd in df.pkeys %}
-        key{{df.name}}.{{fd.n}} = m_pStorage->m_tb{{df.name}}.list(i).{{fd.n}};
+        key{{df.name}}.{{fd.n}} = m_pStorage->m_tb{{df.name}}.list(i).{{fd.n}}();
         {%-endfor%}
-        auto pair = m_pStorage->m_idx{{df.name}}.insert(key{{df.name}}, &(m_pStorage->m_tb{{df.name}}.list(i)));
+        auto pair = m_idx{{df.name}}.insert(key{{df.name}}, &(m_pStorage->m_tb{{df.name}}.list(i)));
         if (pair.second){
             GLOG_ER("Build Hash/Tree index {{df.name}} error for key is repeatly row:%d Info(%s)!", i, m_pStorage->m_tb{{df.name}}.list(i).ShortDebugString().c_str());
             return -1;
@@ -96,7 +96,7 @@ const {{package}}::{{df.name}}Desc *  ResTabIndexBase::{{df.name}}DescGetByKey(c
     for(int i = 0 ;i < m_pStorage->m_tb{{df.name}}.list_size(); ++i){
         if (
         {%-for fd in df.pkeys %}
-            m_pStorage->m_tb{{df.name}}.list(i).{{fd.n}} == key.{{fd.n}}{%if loop.last %} ) {%else%} && {%endif%}
+            m_pStorage->m_tb{{df.name}}.list(i).{{fd.n}}() == key.{{fd.n}}{%if loop.last %} ) {%else%} && {%endif%}
         {%-endfor %} {
             return  &(m_pStorage->m_tb{{df.name}}.list(i));
         }

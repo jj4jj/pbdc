@@ -169,7 +169,7 @@ def cex_type(field):
         mtype = 'pbdcex::bytes_t<%s>' % field['length']
     else:
         mtype = cex_primitive_types_2_cxx_types[field['cex_type']]
-
+    mtype = mtype.replace('.','::')
     ##################
     if field['repeat']:
         return 'pbdcex::array_t<%s,%s>' % (mtype, field['count'])
@@ -222,7 +222,7 @@ class DefStage(dict):
             self.fields.insert(0, dict(t='int32',n=id_alias, required=True))
             self.options['ks'] = id_alias
             self.options['idx'] = 'id'
-            if self.options.get('id_max', 0) == 0:
+            if self.options.get('id_max', None) is None:
                 self.options['id_max'] = 255
         else:
             if self.options.get('idx', None) is None:
@@ -282,6 +282,7 @@ class Ctx(dict):
         }
         ################cex extension#####
         self.CEX_MIN_MEMSET_BLOCK_SIZE=(4*1024)
+        self.codegen = 'pb2'
 
     def __getattr__(self, attr):
         return self.get(attr, None)
@@ -338,6 +339,8 @@ class Ctx(dict):
                                             'must def by pdMsg or pdTab or pdEnum' % (tr.type, tr.name))
                         if fd['t'] in ct.cex_refs:
                             continue
+                        if ct.pack and not tr.pack:
+                            tr.pack = ct.pack
                         ct.cex_refs.append(fd['t'])
                         queue.insert(0, tr)
         #
@@ -391,8 +394,9 @@ gtx = Ctx()
 def pdPragma(p, key, val=None):
     gtx.pragma[p][key] = val
 
-def pdFile(name):
+def pdFile(name, codegen='pb2'):
     gtx.reset(name)
+    gtx.codegen=codegen
     gtx.on_file_begin()
 
 def pdImport(name):
@@ -409,6 +413,7 @@ def pdService(name, **kwargs):
 
 def pdConfig(name, **kwargs):
     kwargs['cex'] = True
+    kwargs['config'] = True
     gtx.stack.append(DefStage('msg', name, kwargs))
 
 def pdEnum(name, **kwargs):
@@ -455,6 +460,8 @@ def pdE(*args, **kwargs):
         ###################################cex##############
         ft = kwargs['t']
         kwargs['cex_type'] = ft
+        if kwargs['t'] == 'string' and kwargs.get('length', 0) is 0:
+            kwargs['length'] = 512
         if ft in cex_ext_types:
             kwargs['t'] = cex_ext_type_2_pb2type[ft]
 
@@ -480,8 +487,23 @@ def pdA(*args, **kwargs):
 
 
 def pdGenerate(ctx, codegen, outdir):
-    for cg in codegen:
-        assert cg in backends, 'not found the codgerator for:'+cg
+    customs = set(codegen.split(','))
+    supports = set(ctx.codegen.split(','))
+    for cg in backends:
+        found = False
+        for gen in supports:
+            if gen == 'all' or cg.find(gen) != -1:
+                found=True
+                break
+        if not found:
+            continue
+        found = False
+        for gen in customs:
+            if gen == 'all' or cg.find(gen) != -1:
+                found=True
+                break
+        if not found:
+            continue
         tp = os.path.join(template_dir,backends[cg].template)
         ext_name = backends[cg].ext_name
         path = os.path.join(outdir, ctx.file+ext_name)
@@ -507,12 +529,10 @@ def getopt(k):
     return None
 
 
-def pdEnd(codegen=['pb2'], outdir=None):
+def pdEnd():
     assert len(gtx.stack) >= 0,'defination not match for end'
-    if outdir is None:
-        outdir = getopt('outdir')
-    if outdir is None:
-        outdir = './'
+    outdir = getopt('outdir') or './'
+    codegen = getopt('codegen') or 'all'
     if len(gtx.stack) == 0:
         gtx.on_file_end()
         #print gtx

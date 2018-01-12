@@ -3,7 +3,7 @@
 
 #include <string>
 #include "{{file}}.store.h"
-#include "error_code.h"
+#include "gslog.h"
 
 
 template <typename MsgT>
@@ -38,7 +38,7 @@ int ResTabStorageBase::Load(){
     std::string strPath;
 {%- for df in defs %}
 {% if df.type == 'table' %}
-    strPath = m_strDir+"/TB{{df.name}}.pbin";
+    strPath = m_strLoadDir+"/TB{{df.name}}Desc.pbin";
     iRetCode = _LoadTableFromBin(m_tb{{df.name}},strPath);
     CHECK_ERR_RET(iRetCode, "Load Bin Path:%s ERROR !", strPath.c_str());
 {%- endif %}

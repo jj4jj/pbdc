@@ -15,6 +15,9 @@ class {{df.name}};
 {%-endfor%}
 
 {%for df in cex_defs %}
+{%-if df.pack %}
+#pragma pack({{df.pack}})
+{%-endif%}
 struct {{df.name}}Cx {
     typedef  {{df.name}}   proto_type;
     //members
@@ -24,7 +27,7 @@ struct {{df.name}}Cx {
 
     //construct
     void   construct(){
-        {%-if cex_has_default_value%}
+        {%-if df|cex_has_default_value%}
         this->SetDefault();
         {%-else%}
         if(sizeof(*this) < ({{CEX_MIN_MEMSET_BLOCK_SIZE}})){ //CEX_MIN_MEMSET_BLOCK_SIZE
@@ -106,10 +109,10 @@ struct {{df.name}}Cx {
     void     From(const {{df.name}} & msgfrom_,  bool bIgnoreEx = false){
         {%-for fd in df.fields %}
         {%-if fd.repeat %}
-        this->{{fd|cex_is_msg}}.count=0;
+        this->{{fd|cex_name}}.count=0;
         for (size_t i = 0; i < (size_t)msgfrom_.{{ fd.n }}_size() && i < {{ fd.count }}; ++i, ++(this->{{ fd|cex_name }}.count)){
             {%-if fd|cex_is_msg %}
-            this->{{fd|cex_is_msg}}.list[i].From(msgfrom_.{{fd.n}}(i), bIgnoreEx);
+            this->{{fd|cex_name}}.list[i].From(msgfrom_.{{fd.n}}(i), bIgnoreEx);
             {%-elif fd.t == 'bytes' %}
             assert(bIgnoreEx || msgfrom_.{{fd.n}}(i).length() <= {{fd.length}});
             this->{{ fd|cex_name }}.list[i].assign(msgfrom_.{{ fd.n }}(i));
@@ -117,7 +120,7 @@ struct {{df.name}}Cx {
             assert(bIgnoreEx || msgfrom_.{{ fd.n }}(i).length() < {{ fd.length }});
             this->{{ fd|cex_name }}.list[i].assign(msgfrom_.{{ fd.n }}(i).data());
             {%-else%}
-            this->{{fd|cex_is_msg}}.list[i] = msgfrom_.{{fd.n}}(i);
+            this->{{fd|cex_name}}.list[i] = msgfrom_.{{fd.n}}(i);
             {%-endif%}
         }
         {%-else%}
@@ -178,7 +181,7 @@ struct {{df.name}}Cx {
                     this->{{fd|cex_name}}.list[i].Diff(orgv.{{fd|cex_name}}.list[i], *upd_);
                 }
                 else {
-                    this->{{fd|cex_name}}.list[i].convto(*upd_);
+                    this->{{fd|cex_name}}.list[i].To(*upd_);
                 }
                 {%-elif fd.t == 'string' %}
                 upd_->assign(this->{{fd|cex_name}}.list[i].data);
@@ -218,7 +221,6 @@ struct {{df.name}}Cx {
         {%-for fd in df.fields%}
         {%-if fd.repeat %}
         {//block of checking array patch
-            static {{fd.cex_type}}    item_temp;
             for (int i = 0; i < updates.{{fd.n}}_size(); ++i) {
                 if (i < (int)this->{{fd|cex_name}}.count) {
                     {%-if fd|cex_is_msg %}
@@ -232,8 +234,9 @@ struct {{df.name}}Cx {
                     {%-endif%}
                 }
                 else {
+                    static typename {{fd|cex_type}}::element_type   item_temp;
                     {%-if fd|cex_is_msg %}
-                    item_temp.confdrom(updates.{{fd.n}}(i));
+                    item_temp.From(updates.{{fd.n}}(i));
                     {%-elif fd.t == 'string' %}
                     item_temp.assign(updates.{{fd.n}}(i));
                     {%-elif fd.t == 'bytes' %}
@@ -296,7 +299,7 @@ struct {{df.name}}Cx {
     bool    operator < (const {{df.name}}Cx & rhs_) const {
         return this->compare(rhs_) < 0;
     }
-    size_t Hash() const {
+    size_t hash() const {
         {%- if df.pkeys|length <= 1 %}
         {%- for fd in df.pkeys%}
         {%- if fd.repeat or fd.t == 'bytes' or fd.t == 'string' %}
@@ -304,7 +307,7 @@ struct {{df.name}}Cx {
         {%- elif fd|cex_is_num or fd|cex_is_enum or fd.t == 'bool' %}
         return (size_t)(this->{{fd|cex_name}});
         {%- elif fd|cex_is_msg %}
-        return this->{{fd|cex_name}}.Hash();
+        return this->{{fd|cex_name}}.hash();
         {%-else%}
         static_assert(false, "error field type '{{fd.t, fd.n}}'in cex");
         {%-endif%}
@@ -317,7 +320,7 @@ struct {{df.name}}Cx {
         {%-elif fd|cex_is_num or fd|cex_is_enum or fd.t == 'bool' %}
             (size_t)(this->{{fd|cex_name}})
         {%-elif fd|cex_is_msg%}
-            this->{{fd|cex_name}}.Hash()
+            this->{{fd|cex_name}}.hash()
         {%-else%}
             static_assert(false, "error field type '{{fd.t, fd.n}}'in cex");
         {%-endif%}
@@ -328,6 +331,9 @@ struct {{df.name}}Cx {
         {%-endif%}
     }
 };
+{%-if df.pack %}
+#pragma pack()
+{%-endif%}
 
 {%-endfor%}
 

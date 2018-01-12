@@ -1,19 +1,17 @@
 //This file is generated auto by pbdc library , dont edit it directly .
 //Any problem when using it , please contact mail:hex@gamesci.com.cn 
 
-#ifndef _RES_TAB_{{package}}_VERIFY_AUTO_GEN_H_
-#define _RES_TAB_{{package}}_VERIFY_AUTO_GEN_H_
-
-#include "{{file}}.index.h"
-//dcpots util
-#include "error_code.h"
+#include "{{file}}.pb.h"
+#include "{{file}}.idx.h"
+#include "{{file}}.verify.h"
+#include "gslog.h"
 
 int         ResTabVerifierBase::OnVerify(){
     return 0;
 }
 void         ResTabVerifierBase::OnClean() {
 }
-int         ResTabVerifierBase::Clean() {
+void         ResTabVerifierBase::Clean() {
     OnClean();
 }
 int         ResTabVerifierBase::Verify(){
@@ -22,8 +20,8 @@ int         ResTabVerifierBase::Verify(){
 {%-for df in defs %}
 {%- if df.type == 'table' %}
     ////////////////check constraints of {{df.name}} begin ///////////
-    for(int i = 0 ;i < m_pIndex.{{df.name}}DescGetList->list_size(); ++i){
-        const {{df.name}}Desc & rDesc = m_pIndex->{{df.name}}DescGetList.list(i);
+    for(int i = 0 ;i < m_pIndex->{{df.name}}DescGetList().list_size(); ++i){
+        const {{package}}::{{df.name}}Desc & rDesc = m_pIndex->{{df.name}}DescGetList().list(i);
         //check fd ? todo
     }
     ////////////////check constraints of {{df.name}} end ///////////
@@ -34,4 +32,3 @@ int         ResTabVerifierBase::Verify(){
     return 0;
 }
 
-#endif
