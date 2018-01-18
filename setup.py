@@ -1,7 +1,7 @@
 from setuptools import setup,find_packages
 setup(  
       name='pbdc',
-      version='0.1.5',
+      version='0.1.7',
       description="python describe data structure and represent with many tools like C/C++ syntax , proto syntax, json, ...etc",
       keywords=['protobuf','c++','c','data represent'],  
       author='jj4jj',

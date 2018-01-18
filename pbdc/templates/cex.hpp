@@ -142,7 +142,7 @@ struct {{df.name}}Cx {
         msgto_.Clear();
         {%-for fd in df.fields%}
         {%-if fd.repeat%}
-        for (size_t i = 0;i < (size_t){{fd.count}}; ++i){
+        for (size_t i = 0;i < (size_t){{fd|cex_name}}.count && i < {{fd.count}}; ++i){
             {%-if fd|cex_is_msg %}
             this->{{fd|cex_name}}.list[i].To(*msgto_.add_{{fd.n}}());
             {%-elif fd.t == 'bytes' %}
