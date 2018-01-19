@@ -10,15 +10,12 @@
 {%if package %}
 namespace {{package}} {
 {%-endif%}
-{%-for df in cex_defs %}
-class {{df.name}};
-{%-endfor%}
 
 {%for df in cex_defs %}
 {%-if df.pack %}
 #pragma pack({{df.pack}})
 {%-endif%}
-struct {{df.name}}Cx {
+struct {{df.name}}Cx : public ::pbdcex::serializable_t<{{df.name}}Cx> {
     typedef  {{df.name}}   proto_type;
     //members
     {%-for fd in df.fields %}
