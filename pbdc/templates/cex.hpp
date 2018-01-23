@@ -15,8 +15,109 @@ namespace {{package}} {
 {%-if df.pack %}
 #pragma pack({{df.pack}})
 {%-endif%}
+struct {{df.name}}CxKeyType {
+    {%- for fd in df.pkeys %}
+    {%-if fd|cex_is_msg%}
+    {{fd|cex_type}}KeyType    {{fd|cex_name}}; //{{fd.cn}} //{{fd.desc}}
+    {%-else%}
+    {{fd|cex_type}}    {{fd|cex_name}}; //{{fd.cn}} //{{fd.desc}}
+    {%-endif%}
+    {%-endfor%}
+    {{df.name}}CxKeyType (){
+        construct();                           
+    }
+    void   construct(){
+        {%-if df|cex_has_default_value%}
+        this->SetDefault();
+        {%-else%}
+        if(sizeof(*this) < ({{CEX_MIN_MEMSET_BLOCK_SIZE}})){ //CEX_MIN_MEMSET_BLOCK_SIZE
+            memset(this, 0, sizeof(*this));
+        }
+        else {
+            this->SetDefault();
+        }
+        {%-endif%}
+    }
+    void    SetDefault(){
+       {%-for fd in df.pkeys%}
+       {%-if fd.repeat%}
+       {{fd|cex_name}}.construct();//array construct
+       {%-elif fd|cex_is_msg %}
+       {{fd|cex_name}}.SetDefault();//msg default
+       {%-elif fd.t == 'bool'%}
+       {{fd|cex_name}}={%if fd.v%}{{fd.v}}{%else%}false{%endif%};
+       {%-elif fd|cex_is_num%}
+       {{fd|cex_name}}=static_cast<{{fd|cex_type}}>({%if fd.v%}{{fd.v}}{%else%}0{%endif%}); //num
+       {%-elif fd.t == 'string' or fd.t == 'bytes'%}
+       {{fd|cex_name}}.assign({%if fd.v%}"{{fd.v}}"{%else%}""{%endif%}); //string
+       {%-elif fd|cex_is_enum%}
+       {{fd|cex_name}}={%if fd.v%}{{fd.v}}{%else%}{{fd.t}}_MIN{%endif%}; //enum
+       {%-else%}
+       static_assert(false, "error field type '{{fd.t}}' in cex define")
+       {%-endif%}
+       {%-endfor%}
+    }
+    int     compare(const {{df.name}}CxKeyType & rhs_) const {
+        int cmp = 0;
+        {%- for fd in df.pkeys %}
+        {%- if fd.repeat %}
+        cmp = this->{{fd|cex_name}}.compare(rhs_.{{fd|cex_name}});
+        if(cmp){return cmp;}
+        {%-elif fd|cex_is_msg%}
+        cmp = this->{{fd|cex_name}}.compare(rhs_.{{fd|cex_name}});
+        if(cmp){return cmp;}
+        {%-else%}
+        if (this->{{fd|cex_name}} < rhs_.{{fd|cex_name}}){
+            return -1;
+        }
+        else if(this->{{fd|cex_name}} > rhs_.{{fd|cex_name}}){
+            return 1;
+        }
+        {%-endif%}
+        {%-endfor%}
+        return cmp;
+    }
+    bool    operator == (const {{df.name}}CxKeyType & rhs_) const {
+        return this->compare(rhs_) == 0;
+    }
+    bool    operator < (const {{df.name}}CxKeyType & rhs_) const {
+        return this->compare(rhs_) < 0;
+    }
+    size_t hash() const {
+        {%- if df.pkeys|length <= 1 %}
+        {%- for fd in df.pkeys%}
+        {%- if fd.repeat or fd.t == 'bytes' or fd.t == 'string' %}
+        return this->{{fd|cex_name}}.hash();
+        {%- elif fd|cex_is_num or fd|cex_is_enum or fd.t == 'bool' %}
+        return (size_t)(this->{{fd|cex_name}});
+        {%- elif fd|cex_is_msg %}
+        return this->{{fd|cex_name}}.hash();
+        {%-else%}
+        static_assert(false, "error field type '{{fd.t, fd.n}}'in cex");
+        {%-endif%}
+        {%-endfor%}
+        {%-else%}
+        size_t avhs[] = {
+        {%-for fd in df.pkeys %}
+        {%-if fd.repeat or fd.t == 'bytes' or fd.t == 'string'%}
+            this->{{fd|cex_name}}.hash()
+        {%-elif fd|cex_is_num or fd|cex_is_enum or fd.t == 'bool' %}
+            (size_t)(this->{{fd|cex_name}})
+        {%-elif fd|cex_is_msg%}
+            this->{{fd|cex_name}}.hash()
+        {%-else%}
+            static_assert(false, "error field type '{{fd.t, fd.n}}'in cex");
+        {%-endif%}
+        {%-if loop.last%}{%else%},{%endif%}
+        {%-endfor%}
+        };
+        return pbdcex::hash_code_merge_multi_value(avhs, {{df.pkeys|length}});
+        {%-endif%}
+    }
+};
 struct {{df.name}}Cx : public ::pbdcex::serializable_t<{{df.name}}Cx> {
-    typedef  {{df.name}}   proto_type;
+    typedef  {{df.name}}   ProtoType;
+    typedef  {{df.name}}CxKeyType KeyType; 
     //members
     {%-for fd in df.fields %}
     {{fd|cex_type}}    {{fd|cex_name}}; //{{fd.cn}} //{{fd.desc}}
@@ -270,25 +371,24 @@ struct {{df.name}}Cx : public ::pbdcex::serializable_t<{{df.name}}Cx> {
         {%-endif%}
         {%-endfor%}
     }
-    int     compare(const {{df.name}}Cx & rhs_) const {
-        int cmp = 0;
+    void    ToKey(KeyType & key_) const {
         {%- for fd in df.pkeys %}
-        {%- if fd.repeat %}
-        cmp = this->{{fd|cex_name}}.compare(rhs_.{{fd|cex_name}});
-        if(cmp){return cmp;}
-        {%-elif fd|cex_is_msg%}
-        cmp = this->{{fd|cex_name}}.compare(rhs_.{{fd|cex_name}});
-        if(cmp){return cmp;}
+        {%- if fd|cex_is_msg %}
+        this->{{fd|cex_name}}.ToKey(key_.{{fd|cex_name}});
         {%-else%}
-        if (this->{{fd|cex_name}} < rhs_.{{fd|cex_name}}){
-            return -1;
-        }
-        else if(this->{{fd|cex_name}} > rhs_.{{fd|cex_name}}){
-            return 1;
-        }
+        key_.{{fd|cex_name}} = this->{{fd|cex_name}};
         {%-endif%}
         {%-endfor%}
-        return cmp;
+    }
+    int     compare(const {{df.name}}Cx & rhs_) const {
+        {%-if df.pkeys == df.fields %} 
+        return ((KeyType*)this)->compare(*((KeyType*)&rhs_));
+        {%-else%}
+        KeyType this_key, rhs_key;
+        this->ToKey(this_key);
+        rhs_.ToKey(rhs_key);
+        return this_key.compare(rhs_key);
+        {%-endif%}
     }
     bool    operator == (const {{df.name}}Cx & rhs_) const {
         return this->compare(rhs_) == 0;
@@ -297,34 +397,12 @@ struct {{df.name}}Cx : public ::pbdcex::serializable_t<{{df.name}}Cx> {
         return this->compare(rhs_) < 0;
     }
     size_t hash() const {
-        {%- if df.pkeys|length <= 1 %}
-        {%- for fd in df.pkeys%}
-        {%- if fd.repeat or fd.t == 'bytes' or fd.t == 'string' %}
-        return this->{{fd|cex_name}}.hash();
-        {%- elif fd|cex_is_num or fd|cex_is_enum or fd.t == 'bool' %}
-        return (size_t)(this->{{fd|cex_name}});
-        {%- elif fd|cex_is_msg %}
-        return this->{{fd|cex_name}}.hash();
+        {%-if df.pkeys == df.fields %} 
+        return ((KeyType*)this)->hash();
         {%-else%}
-        static_assert(false, "error field type '{{fd.t, fd.n}}'in cex");
-        {%-endif%}
-        {%-endfor%}
-        {%-else%}
-        size_t avhs[] = {
-        {%-for fd in df.pkeys %}
-        {%-if fd.repeat or fd.t == 'bytes' or fd.t == 'string'%}
-            this->{{fd|cex_name}}.hash()
-        {%-elif fd|cex_is_num or fd|cex_is_enum or fd.t == 'bool' %}
-            (size_t)(this->{{fd|cex_name}})
-        {%-elif fd|cex_is_msg%}
-            this->{{fd|cex_name}}.hash()
-        {%-else%}
-            static_assert(false, "error field type '{{fd.t, fd.n}}'in cex");
-        {%-endif%}
-        {%-if loop.last%}{%else%},{%endif%}
-        {%-endfor%}
-        };
-        return pbdcex::hash_code_merge_multi_value(avhs, {{df.pkeys|length}});
+        KeyType this_key;
+        this->ToKey(this_key);
+        return this_key.hash();
         {%-endif%}
     }
 };

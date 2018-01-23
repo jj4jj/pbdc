@@ -29,6 +29,7 @@ cex_ext_type_min_value = {
 cex_ext_types = cex_ext_type_2_pb2type.keys()
 pb_int_types = ('uint32','uint64','int32','int64','fixed64')
 pb_error_types = ('sfixed64','sfixed32','fixed32')
+pb_reserve_names = set(("construct","hash","alignas","alignof","and","and_eq","asm","atomic_cancel","atomic_commit","atomic_noexcept","auto","bitand","bitor","bool","break","case","catch","char","char16_t","char32_t","class","compl","concept","const","constexpr","const_cast","continue","co_await","co_return","co_yield","decltype","default","delete","do","double","dynamic_cast","else","enum","explicit","export","extern","false","float","for","friend","goto","if","import","inline","int","long","module","mutable","namespace","new","noexcept","not","not_eq","nullptr","operator","or","or_eq","private","protected","public","reinterpret_cast","register","requires","return","short","signed","sizeof","static","static_assert","static_cast","struct","switch","synchronized","template","this","thread_local","throw","true","try","typedef","typeid","typename","union","unsigned","using","virtual","void","volatile","wchar_t","while","xor","xor_eq"))
 primitive_types_integer = set(list(cex_ext_types) + list(pb_int_types))
 primitive_types_real = set(('float','double'))
 primitive_types_number = primitive_types_integer | primitive_types_real
@@ -67,10 +68,10 @@ backends = {
     'res.v.h': CodeGenerater('.verify.h','restb.verify.h'),
     'res.v.c': CodeGenerater('.verify.cc','restb.verify.cc'),
     'cex': CodeGenerater('.cex.hpp','cex.hpp'),
-    'rpc.h': CodeGenerater('.rpc.h', 'xrpc.h'),
-    'rpc.c': CodeGenerater('.rpc.cc', 'xrpc.cc'),
-    'db.h': CodeGenerater('.db.h', 'xdb.h'),
-    'db.c': CodeGenerater('.db.cc', 'xdb.cc'),
+    'rpc.h': CodeGenerater('.xrpc.h', 'xrpc.h'),
+    'rpc.c': CodeGenerater('.xrpc.cc', 'xrpc.cc'),
+    'db.h': CodeGenerater('.xdb.h', 'xdb.h'),
+    'db.c': CodeGenerater('.xdb.cc', 'xdb.cc'),
 }
 
 ########################################################################################################
@@ -238,13 +239,21 @@ class DefStage(dict):
                     break
 
     def on_msg_end(self):        
-        if self.ks is None:
-            self.ks = ','.join([fd['n'] for fd in self.fields])
+        if self.options.get('ks',None) is None:
+            self.options['ks'] = ','.join([fd['n'] for fd in self.fields if not fd.get('repeat',False)])
             self.pkeys = self.fields
         else:
-            fks = self.ks.split(',')
-            self.pkeys = [fd for fd in self.fields if fd.n in fks ]
-        assert len(self.pkeys) > 0,'error define for msg:%s property:"ks:%s"' % (self.name, self.ks)
+            fks = self.options['ks'].split(',')
+            self.pkeys = []
+            for fk in fks:
+                for fd in self.fields:
+                    if fd['n'] != fk:
+                        continue
+                    if fd.get('repeat',False) is True:
+                        assert(False, 'msg:"%s" define keys must not be repeat members def:"%s"' % (self.name, str(fd),))
+                    self.pkeys.append(fd)
+                    break
+        assert len(self.pkeys) > 0,'error define ks for msg:"%s" property ks:"%s"' % (self.name, self.options['ks'])
         if self.options.get('cex',None) is True:
             gtx.cexs.append(self)
 
@@ -477,7 +486,9 @@ def pdE(*args, **kwargs):
             kwargs['v']=args[1]
     	check_keys(kwargs, ['n','v'])
     dt = kwargs.get('t',None)
-    assert (dt not in pb_error_types),'pbdc deprecate protobuf using this type "%s" the field.' % (dt, str(kwargs))
+    assert (dt not in pb_error_types),'pbdc deprecate protobuf using this type "%s" the field define "%s"' % (dt, str(kwargs))
+    dn = kwargs.get('n',None)
+    assert (dn not in pb_reserve_names),'pbdc can not use the reserve keywords like:"%s" in field define "%s"' % (dn, str(kwargs))
     gtx.stack[-1].fields.append(kwargs)
 
 def pdA(*args, **kwargs):
