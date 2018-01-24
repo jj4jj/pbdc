@@ -68,8 +68,9 @@ backends = {
     'res.v.h': CodeGenerater('.verify.h','restb.verify.h'),
     'res.v.c': CodeGenerater('.verify.cc','restb.verify.cc'),
     'cex': CodeGenerater('.cex.hpp','cex.hpp'),
-    'rpc.h': CodeGenerater('.xrpc.h', 'xrpc.h'),
-    'rpc.c': CodeGenerater('.xrpc.cc', 'xrpc.cc'),
+    'srpc.h': CodeGenerater('.rpc.h', 'srpc.h'),
+    'crpc.h': CodeGenerater('.rpc.h', 'crpc.h'),
+    'rpcc.c': CodeGenerater('.rpc.cc', 'rpc.cc'),
     'db.h': CodeGenerater('.xdb.h', 'xdb.h'),
     'db.c': CodeGenerater('.xdb.cc', 'xdb.cc'),
 }
@@ -105,12 +106,36 @@ def camel_style_name(name):
     return rname
 
 #CSMsgLoginQuery->LoginQuery->login_query
-def rpc_name(entry_type_name, service_name):
+def rpc_name(entry_type_name, service_name='Msg'):
     pos = entry_type_name.find(service_name)
     if pos == -1:
         raise Exception('rpc define error for pdE type do not have a service type prefix type:%s' % entry_type_name)
     return camel_style_trans(entry_type_name[pos+len(service_name):])
 
+def rpc_svc_name(cmdtype):
+    idx = 1
+    is_upper=True
+    pos = cmdtype.find('Msg')
+    beg = 0
+    if pos != -1:
+        for ch in cmdtype[pos+3+2:]:
+            idx = idx+1
+            if ch.islower():
+                is_upper=False
+            if beg == 0 and ch.isupper and not is_upper:
+                beg = pos+3
+                is_upper = True
+            if beg > 0 and not is_upper and ch.isupper():
+                return cmdtype[beg:pos+3+idx]
+    raise Exception('rpc type name should be like "<ProtoName>Msg<Family><Action>" such as "SSMsgRoleLogin" and it will gen FaimilySvc::Action() method')
+
+
+def rpc_method_name(cmdtype):
+    svc_name = rpc_svc_name(cmdtype)
+    svc_name_pos = cmdtype.find(svc_name)
+    assert svc_name_pos != -1, 'rpc type name must include service name'
+    return cmdtype[svc_name_pos+len(svc_name):]
+        
 
 ###################################################################################################
 def rpc_cmd(entry_type_name, service_name, cmd_prefix):
@@ -199,6 +224,8 @@ gtpl_env.filters={'rpc_name':rpc_name,
                   'cex_is_enum': cex_is_enum,
                   'cex_has_default_value': cex_has_default_value,
                   'length': length,
+                  'rpc_svc_name': rpc_svc_name,
+                  'rpc_method_name': rpc_method_name,
                   }
 ###################################################################################################
 
@@ -249,8 +276,7 @@ class DefStage(dict):
                 for fd in self.fields:
                     if fd['n'] != fk:
                         continue
-                    if fd.get('repeat',False) is True:
-                        assert(False, 'msg:"%s" define keys must not be repeat members def:"%s"' % (self.name, str(fd),))
+                    assert fd.get('repeat',False) is False, 'msg:"%s" define keys must not be repeat members def:"%s"' % (self.name, str(fd))
                     self.pkeys.append(fd)
                     break
         assert len(self.pkeys) > 0,'error define ks for msg:"%s" property ks:"%s"' % (self.name, self.options['ks'])
@@ -292,6 +318,10 @@ class Ctx(dict):
         ################cex extension#####
         self.CEX_MIN_MEMSET_BLOCK_SIZE=(4*1024)
         self.codegen = 'pb2'
+        ####
+        self.rpc_no_login = []
+        self.rpc_type_cmd = {}
+
 
     def __getattr__(self, attr):
         return self.get(attr, None)
@@ -305,6 +335,12 @@ class Ctx(dict):
             hook = getattr(self, 'on_%s_begin' % ext,  None)
             if hook:
                 hook()
+
+    def on_rpcc_c_end(self):
+        cmds = []
+        for mprefix in self.rpc_no_login:
+            cmds.append(self.rpc_type_cmd[mprefix])
+        self.rpc_no_login = cmds
 
     def on_file_end(self):
         for bkd in backends:
@@ -425,6 +461,10 @@ def pdConfig(name, **kwargs):
     kwargs['config'] = True
     gtx.stack.append(DefStage('msg', name, kwargs))
 
+def pdCex(name, **kwargs):
+    kwargs['cex'] = True
+    gtx.stack.append(DefStage('msg', name, kwargs))
+
 def pdEnum(name, **kwargs):
     #print gtx.stack
     gtx.stack.append(DefStage('enum', name, kwargs))
@@ -433,6 +473,8 @@ def pdTab(name, **kwargs):
     gtx.stack.append(DefStage('table', name, kwargs))
 
 def pdRpc(name, **kwargs):
+    if kwargs.get('no_login',False) is True:
+        gtx.rpc_no_login.append(name)
     gtx.stack.append(DefStage('rpc', name, kwargs))
 
 def check_keys(kwargs, keys=[]):
@@ -479,6 +521,8 @@ def pdE(*args, **kwargs):
             kwargs['t']=args[0]
         kwargs.pop('n',None)
     	check_keys(kwargs, ['t'])
+        gtx.rpc_type_cmd[kwargs['t']] = rpc_cmd(kwargs['t'], gtx.stack[-1].name, gtx.stack[-1].options['cmd_pre'])
+
     if current_ctype == 'enum':
         if(len(args) > 0):
             kwargs['n']=args[0]

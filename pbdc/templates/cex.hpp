@@ -16,8 +16,9 @@ namespace {{package}} {
 #pragma pack({{df.pack}})
 {%-endif%}
 struct {{df.name}}CxKeyType {
+    //primary keys of {{df.name}}Cx : "{{df.options.ks}}" 
     {%- for fd in df.pkeys %}
-    {%-if fd|cex_is_msg%}
+    {%-if fd|cex_is_msg and not fd.repeat %}
     {{fd|cex_type}}KeyType    {{fd|cex_name}}; //{{fd.cn}} //{{fd.desc}}
     {%-else%}
     {{fd|cex_type}}    {{fd|cex_name}}; //{{fd.cn}} //{{fd.desc}}
@@ -373,10 +374,19 @@ struct {{df.name}}Cx : public ::pbdcex::serializable_t<{{df.name}}Cx> {
     }
     void    ToKey(KeyType & key_) const {
         {%- for fd in df.pkeys %}
-        {%- if fd|cex_is_msg %}
+        {%- if fd|cex_is_msg and not fd.repeat %}
         this->{{fd|cex_name}}.ToKey(key_.{{fd|cex_name}});
         {%-else%}
         key_.{{fd|cex_name}} = this->{{fd|cex_name}};
+        {%-endif%}
+        {%-endfor%}
+    }
+    void    FromKey(const KeyType & key_){
+        {%- for fd in df.pkeys %}
+        {%- if fd|cex_is_msg and not fd.repeat %}
+        this->{{fd|cex_name}}.FromKey(key_.{{fd|cex_name}});
+        {%-else%}
+        this->{{fd|cex_name}} = key_.{{fd|cex_name}};
         {%-endif%}
         {%-endfor%}
     }
