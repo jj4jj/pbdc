@@ -1,7 +1,8 @@
 #ifndef _XDB_AGENT_{{file}}_H_
 #define _XDB_AGENT_{{file}}_H_
-#include "dbagent.h"
+{{declare}}
 
+#include "dbagent.h"
 
 typedef std::function<void(MsgErrCode ret, const ::google::protobuf::Message * pDbData, bool bInsert)> GetOrInsertFuture;
 typedef std::function<void(MsgErrCode ret, uint64_t version)> UpdateFuture;

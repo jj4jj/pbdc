@@ -1,6 +1,8 @@
+{{declare}} 
 #include "gslog.h"
 #include "gmq/gmq.h"
 #include "{{file}}.rpc.h"
+
 {%-if package%}
 namespace {{package}} {
 {%-endif%}
@@ -44,11 +46,11 @@ const ::google::protobuf::Message * RpcGetBody(const {{df.name}} & msg){
     }
     return &response;
 }
-bool RpcIsRequest(const {{df.name}} & ssmsg){
-    return (ssmsg.head().cmd() % 2 == 1);
+bool RpcCmdIsRequest({{df.name}}Cmd cmd){
+    return (cmd % 2 == 1);
 }
 {%-if rpc_no_login|length > 0%}
-bool RpcCmdIsNoLogin(const {{df.name}}Cmd cmd){
+bool RpcCmdIsNoLogin({{df.name}}Cmd cmd){
     switch(cmd){
     {%-for nologin in rpc_no_login%}
     case {{nologin}}_REQ:

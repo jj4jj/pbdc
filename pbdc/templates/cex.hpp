@@ -1,7 +1,7 @@
-//This file is generated auto by pbdc library , dont edit it directly .
-//Any problem when using it , please contact mail:hex@gamesci.com.cn 
 #ifndef _PB_{{file}}_CEX_AUTO_GEN_H_
 #define _PB_{{file}}_CEX_AUTO_GEN_H_
+//This file is generated auto by pbdc library , dont edit it directly .
+//Any problem meet when using it , please contact mail:hex@gamesci.com.cn 
 {%for pkg in imports%}
 #include "{{pkg}}.cex.hpp"
 {%-endfor%}

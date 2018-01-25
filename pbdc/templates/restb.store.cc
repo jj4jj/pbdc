@@ -1,6 +1,4 @@
-//This file is generated auto by pbdc library , dont edit it directly .
-//Any problem when using it , please contact mail:hex@gamesci.com.cn 
-
+{{declare}}
 #include <string>
 #include "{{file}}.store.h"
 #include "gslog.h"

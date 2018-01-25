@@ -1,13 +1,9 @@
-//This file is generated auto by pbdc library , dont edit it directly .
-//Any problem when using it , please contact mail:hex@gamesci.com.cn 
-
+{{declare}}
 //basic
 #include "{{file}}.pb.h"
 #include "{{file}}.idx.h"
 #include "{{file}}.store.h"
-
 #include "gslog.h"
-
 
 int   ResTabIndexBase::Build(){
     int iRetCode = 0;
