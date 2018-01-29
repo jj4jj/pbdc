@@ -22,7 +22,7 @@ namespace {{package}} {
 {%-for df in defs%}
 {%-if df.type == 'rpc' %}
 namespace {{df.name|rpc_svc_name}}Svc {
-    {{package}}::MsgErrCode   {{df.name|rpc_method_name}}(uint32_t dwFromGmqId, const {{package}}::{{df.name}}Req * p{{df.name|rpc_method_name}}Req, void * ud);
+    {{package}}::MsgErrCode   {{df.name|rpc_method_name}}(uint32_t dwFromGmqId, const {{package}}::{{df.name}}Req * p{{df.name|rpc_method_name}}Req, {{package}}::{{df.name}}Res * p{{df.name|rpc_method_name}}Res);
 };
 {%-endif%}
 {%-endfor%}

@@ -132,7 +132,7 @@ def rpc_svc_name(cmdtype):
                 is_upper = True
             if beg > 0 and not is_upper and ch.isupper():
                 return cmdtype[beg:pos+3+idx]
-    raise Exception('rpc type name should be like "<ProtoName>Msg<Family><Action>" such as "SSMsgRoleLogin" and it will gen FaimilySvc::Action() method')
+    raise Exception('error rpc type:"%s" for rpc type name should be like "<ProtoName>Msg<Family><Action>" such as "SSMsgRoleLogin" and it will gen FaimilySvc::Action() method' % cmdtype)
 
 
 def rpc_method_name(cmdtype):

@@ -26,9 +26,9 @@ class Session;
 {%-if df.type == 'rpc' %}
 namespace {{df.name|rpc_svc_name}}Svc {
     {%if df.options.no_login%}
-    {{package}}::MsgErrCode   {{df.name|rpc_method_name}}(Session * pSession, const {{package}}::{{df.name}}Req * {{df.name|rpc_method_name}});
+    {{package}}::MsgErrCode   {{df.name|rpc_method_name}}(Session * pSession_PlayerMayBeNull, const {{package}}::{{df.name}}Req * p{{df.name|rpc_method_name}}Req,{{package}}::{{df.name}}Res * p{{df.name|rpc_method_name}}Res);
     {%else%}
-    {{package}}::MsgErrCode   {{df.name|rpc_method_name}}(Player * pPlayer, const {{package}}::{{df.name}}Req * {{df.name|rpc_method_name}});
+    {{package}}::MsgErrCode   {{df.name|rpc_method_name}}(Session * pSession_PlayerNotNull, const {{package}}::{{df.name}}Req * p{{df.name|rpc_method_name}}Req,{{package}}::{{df.name}}Res * p{{df.name|rpc_method_name}}Res);
     {%endif%}
 };
 {%-endif%}
