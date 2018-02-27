@@ -76,8 +76,6 @@ backends = {
     'srpc.h': CodeGenerater('.rpc.h', 'srpc.h'),
     'crpc.h': CodeGenerater('.rpc.h', 'crpc.h'),
     'rpcc.c': CodeGenerater('.rpc.cc', 'rpc.cc'),
-    'db.h': CodeGenerater('.xdb.h', 'xdb.h'),
-    'db.c': CodeGenerater('.xdb.cc', 'xdb.cc'),
 }
 
 ########################################################################################################
